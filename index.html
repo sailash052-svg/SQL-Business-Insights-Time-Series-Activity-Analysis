@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SQL Business Insights: Time-Series Activity Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --navy:#1B2A41; --navy-2:#2E4057; --slate:#4F6D7A;
+    --ice:#8FB2C2; --ice2:#C0D6DF; --paper:#F7F9FA; --ink:#152233; --muted:#6B7A8C;
+    --up:#2E7D5B; --down:#B5433D; --gold:#C99A3D; --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Arial,sans-serif;background:var(--paper);color:var(--ink);}
+  .topbar{background:var(--navy);color:#fff;padding:22px 32px;display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px;}
+  .topbar h1{margin:0;font-size:22px;font-weight:700;}
+  .topbar .sub{color:var(--ice2);font-size:13px;margin-top:4px;}
+  .badge{background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.25);color:#fff;padding:6px 12px;border-radius:20px;font-size:12px;}
+  .container{padding:24px 32px 48px;max-width:1400px;margin:0 auto;}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:16px;margin-bottom:24px;}
+  .kpi{background:#fff;border-radius:var(--radius);padding:18px 20px;border:1px solid #E7EBEE;box-shadow:0 1px 2px rgba(20,30,45,0.04);}
+  .kpi .label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;}
+  .kpi .value{font-size:22px;font-weight:700;color:var(--navy-2);}
+  .kpi .sub{font-size:12px;color:var(--muted);margin-top:6px;}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;margin-bottom:18px;}
+  .panel{background:#fff;border-radius:var(--radius);border:1px solid #E7EBEE;padding:18px 20px 8px;box-shadow:0 1px 2px rgba(20,30,45,0.04);}
+  .panel h3{margin:0 0 4px;font-size:14px;font-weight:700;}
+  .panel .note{font-size:12px;color:var(--muted);margin-bottom:8px;}
+  .panel canvas{max-height:280px;}
+  .full{grid-column:1/-1;}
+  footer{text-align:center;color:var(--muted);font-size:12px;padding:20px;}
+  @media (max-width:900px){.grid{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <h1>SQL Business Insights: Time-Series Activity Dashboard</h1>
+    <div class="sub">3.05M hourly readings · 235 series · Jan 2020 – Jun 2021</div>
+  </div>
+  <div class="badge">Portfolio Project · 23 SQL Queries</div>
+</div>
+
+<div class="container">
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="grid">
+    <div class="panel full">
+      <h3>Total Monthly Activity (All Series Combined)</h3>
+      <div class="note">Highest early, with a systemic event distorting Feb-Mar 2020</div>
+      <canvas id="chartMonthly"></canvas>
+    </div>
+    <div class="panel">
+      <h3>Top 10 Series by Total Activity</h3>
+      <div class="note">Series 187 dwarfs the rest</div>
+      <canvas id="chartTopSeries"></canvas>
+    </div>
+    <div class="panel">
+      <h3>Average Activity by Hour of Day</h3>
+      <div class="note">~8x swing from morning trough to evening peak</div>
+      <canvas id="chartHour"></canvas>
+    </div>
+    <div class="panel">
+      <h3>Average Activity by Day of Week</h3>
+      <div class="note">Weekends run slightly higher</div>
+      <canvas id="chartDow"></canvas>
+    </div>
+    <div class="panel">
+      <h3>Top Dates by Anomaly Count</h3>
+      <div class="note">2020-03-02 21:00 hit 176 of 235 series at once</div>
+      <canvas id="chartAnomaly"></canvas>
+    </div>
+    <div class="panel full">
+      <h3>Growth Leaders vs. Decliners</h3>
+      <div class="note">First 90 days vs. last 90 days average, per series</div>
+      <canvas id="chartGrowth"></canvas>
+    </div>
+  </div>
+
+</div>
+
+<footer>Built with Chart.js · Powered by 23 SQL queries (CTEs, window functions, subqueries, joins) · See queries.sql for the full set</footer>
+
+<script>
+const DASH_DATA = {"overall": {"total_rows": 3055000, "total_series": 235, "total_activity": 571845949, "avg_hourly": 187.18, "peak_value": 19523, "anomaly_count": 2037, "series_with_anomaly": 194, "systemic_spike_series_count": 176}, "monthly": [{"month": "2020-01", "total_activity": 50345358.0, "avg_hourly": 291.0809320074006}, {"month": "2020-02", "total_activity": 48914103.0, "avg_hourly": 299.05907923697725}, {"month": "2020-03", "total_activity": 28724102.0, "avg_hourly": 164.28793182338137}, {"month": "2020-04", "total_activity": 9016072.0, "avg_hourly": 53.28647754137116}, {"month": "2020-05", "total_activity": 21253985.0, "avg_hourly": 121.56248570121254}, {"month": "2020-06", "total_activity": 30580721.0, "avg_hourly": 180.73712174940897}, {"month": "2020-07", "total_activity": 34876233.0, "avg_hourly": 199.47513726835965}, {"month": "2020-08", "total_activity": 35331938.0, "avg_hourly": 202.081548844658}, {"month": "2020-09", "total_activity": 34158954.0, "avg_hourly": 201.88507092198583}, {"month": "2020-10", "total_activity": 34898940.0, "avg_hourly": 199.60501029512696}, {"month": "2020-11", "total_activity": 31865514.0, "avg_hourly": 188.3304609929078}, {"month": "2020-12", "total_activity": 34108228.0, "avg_hourly": 195.08252116220544}, {"month": "2021-01", "total_activity": 35885810.0, "avg_hourly": 205.2494280485015}, {"month": "2021-02", "total_activity": 31983176.0, "avg_hourly": 202.52771023302935}, {"month": "2021-03", "total_activity": 42951798.0, "avg_hourly": 245.66345229924505}, {"month": "2021-04", "total_activity": 39703389.0, "avg_hourly": 234.6535992907801}, {"month": "2021-05", "total_activity": 19391003.0, "avg_hourly": 110.90713223518644}, {"month": "2021-06", "total_activity": 7856625.0, "avg_hourly": 55.72074468085106}], "top_series": [{"unique_id": 187, "total_activity": 31085561.0, "avg_hourly": 2391.197, "n_hours": 13000}, {"unique_id": 116, "total_activity": 17172700.0, "avg_hourly": 1320.9769230769232, "n_hours": 13000}, {"unique_id": 18, "total_activity": 16640036.0, "avg_hourly": 1280.0027692307692, "n_hours": 13000}, {"unique_id": 10, "total_activity": 14516074.0, "avg_hourly": 1116.621076923077, "n_hours": 13000}, {"unique_id": 36, "total_activity": 13506560.0, "avg_hourly": 1038.966153846154, "n_hours": 13000}, {"unique_id": 126, "total_activity": 11871764.0, "avg_hourly": 913.2126153846152, "n_hours": 13000}, {"unique_id": 59, "total_activity": 11353879.0, "avg_hourly": 873.3753076923077, "n_hours": 13000}, {"unique_id": 130, "total_activity": 10550315.0, "avg_hourly": 811.5626923076923, "n_hours": 13000}, {"unique_id": 32, "total_activity": 9125587.0, "avg_hourly": 701.9682307692308, "n_hours": 13000}, {"unique_id": 12, "total_activity": 8648937.0, "avg_hourly": 665.3028461538462, "n_hours": 13000}, {"unique_id": 208, "total_activity": 8370983.0, "avg_hourly": 643.9217692307692, "n_hours": 13000}, {"unique_id": 159, "total_activity": 7459206.0, "avg_hourly": 573.7850769230769, "n_hours": 13000}, {"unique_id": 48, "total_activity": 7066097.0, "avg_hourly": 543.545923076923, "n_hours": 13000}, {"unique_id": 217, "total_activity": 6825739.0, "avg_hourly": 525.0568461538462, "n_hours": 13000}, {"unique_id": 190, "total_activity": 6824538.0, "avg_hourly": 524.9644615384616, "n_hours": 13000}, {"unique_id": 86, "total_activity": 6814360.0, "avg_hourly": 524.1815384615385, "n_hours": 13000}, {"unique_id": 84, "total_activity": 6813877.0, "avg_hourly": 524.1443846153846, "n_hours": 13000}, {"unique_id": 114, "total_activity": 6569260.0, "avg_hourly": 505.3276923076923, "n_hours": 13000}, {"unique_id": 30, "total_activity": 6490437.0, "avg_hourly": 499.26438461538464, "n_hours": 13000}, {"unique_id": 100, "total_activity": 6332604.0, "avg_hourly": 487.1233846153846, "n_hours": 13000}], "hour": [{"hour_of_day": 0, "avg_activity": 296.21657293428245}, {"hour_of_day": 1, "avg_activity": 276.90425925197627}, {"hour_of_day": 2, "avg_activity": 244.06906044755576}, {"hour_of_day": 3, "avg_activity": 198.23159633460492}, {"hour_of_day": 4, "avg_activity": 147.7205018287647}, {"hour_of_day": 5, "avg_activity": 104.291398906674}, {"hour_of_day": 6, "avg_activity": 73.18457545129193}, {"hour_of_day": 7, "avg_activity": 50.16691705667204}, {"hour_of_day": 8, "avg_activity": 38.2063044673}, {"hour_of_day": 9, "avg_activity": 35.432221088168326}, {"hour_of_day": 10, "avg_activity": 44.70757635235927}, {"hour_of_day": 11, "avg_activity": 68.46553348512208}, {"hour_of_day": 12, "avg_activity": 104.20717594409987}, {"hour_of_day": 13, "avg_activity": 142.4736358640182}, {"hour_of_day": 14, "avg_activity": 176.15427494700478}, {"hour_of_day": 15, "avg_activity": 205.2596686817932}, {"hour_of_day": 16, "avg_activity": 231.32845253984453}, {"hour_of_day": 17, "avg_activity": 260.0842427573212}, {"hour_of_day": 18, "avg_activity": 288.7034309492031}, {"hour_of_day": 19, "avg_activity": 300.1340347020491}, {"hour_of_day": 20, "avg_activity": 300.6753003061946}, {"hour_of_day": 21, "avg_activity": 302.2891183167151}, {"hour_of_day": 22, "avg_activity": 301.18779932480174}, {"hour_of_day": 23, "avg_activity": 302.11631467378504}], "dow": [{"day_name": "Sunday", "dow_num": 0, "avg_activity": 199.70259279727364}, {"day_name": "Monday", "dow_num": 1, "avg_activity": 183.6411877129962}, {"day_name": "Tuesday", "dow_num": 2, "avg_activity": 186.01713180436585}, {"day_name": "Wednesday", "dow_num": 3, "avg_activity": 178.5887339055794}, {"day_name": "Thursday", "dow_num": 4, "avg_activity": 179.93121703946173}, {"day_name": "Friday", "dow_num": 5, "avg_activity": 178.9301918530642}, {"day_name": "Saturday", "dow_num": 6, "avg_activity": 203.7500506585613}], "growth_top": [{"unique_id": 25, "early_avg": 186.09, "late_avg": 444.71, "growth_pct": 138.97}, {"unique_id": 194, "early_avg": 70.38, "late_avg": 92.11, "growth_pct": 30.87}, {"unique_id": 128, "early_avg": 63.56, "late_avg": 77.06, "growth_pct": 21.25}, {"unique_id": 19, "early_avg": 86.24, "late_avg": 103.22, "growth_pct": 19.68}, {"unique_id": 34, "early_avg": 64.71, "late_avg": 76.59, "growth_pct": 18.36}, {"unique_id": 106, "early_avg": 71.58, "late_avg": 83.63, "growth_pct": 16.84}, {"unique_id": 0, "early_avg": 13.91, "late_avg": 16.21, "growth_pct": 16.55}, {"unique_id": 132, "early_avg": 64.23, "late_avg": 74.6, "growth_pct": 16.14}, {"unique_id": 15, "early_avg": 12.87, "late_avg": 14.49, "growth_pct": 12.59}, {"unique_id": 35, "early_avg": 59.08, "late_avg": 66.47, "growth_pct": 12.5}], "growth_bottom": [{"unique_id": 197, "early_avg": 135.22, "late_avg": 41.95, "growth_pct": -68.98}, {"unique_id": 137, "early_avg": 66.2, "late_avg": 20.5, "growth_pct": -69.03}, {"unique_id": 179, "early_avg": 80.13, "late_avg": 24.71, "growth_pct": -69.16}, {"unique_id": 47, "early_avg": 117.12, "late_avg": 35.55, "growth_pct": -69.64}, {"unique_id": 229, "early_avg": 99.69, "late_avg": 30.0, "growth_pct": -69.91}, {"unique_id": 231, "early_avg": 67.43, "late_avg": 19.93, "growth_pct": -70.44}, {"unique_id": 151, "early_avg": 126.53, "late_avg": 35.63, "growth_pct": -71.84}, {"unique_id": 61, "early_avg": 160.6, "late_avg": 40.7, "growth_pct": -74.65}, {"unique_id": 222, "early_avg": 58.71, "late_avg": 12.42, "growth_pct": -78.85}, {"unique_id": 160, "early_avg": 180.33, "late_avg": 22.47, "growth_pct": -87.54}], "anomaly_dates": [{"date": "2020-02-16", "count": 216}, {"date": "2020-03-02", "count": 169}, {"date": "2020-02-15", "count": 147}, {"date": "2020-02-23", "count": 131}, {"date": "2020-02-09", "count": 114}, {"date": "2020-03-08", "count": 111}, {"date": "2020-03-01", "count": 109}, {"date": "2020-05-23", "count": 81}, {"date": "2020-02-08", "count": 74}, {"date": "2020-03-07", "count": 73}, {"date": "2020-02-17", "count": 68}, {"date": "2020-01-26", "count": 52}, {"date": "2020-01-12", "count": 47}, {"date": "2020-01-19", "count": 44}, {"date": "2020-02-02", "count": 35}]};
+</script>
+<script>
+const COLORS = {
+  navy: '#2E4057', slate: '#4F6D7A', ice: '#8FB2C2',
+  up: '#2E7D5B', down: '#B5433D', gold: '#C99A3D',
+};
+
+function renderKPIs() {
+  const o = DASH_DATA.overall;
+  const kpis = [
+    { label: 'Total Rows', value: (o.total_rows/1e6).toFixed(2) + 'M', sub: 'hourly readings' },
+    { label: 'Series Tracked', value: o.total_series, sub: 'distinct products/locations' },
+    { label: 'Total Activity', value: (o.total_activity/1e6).toFixed(1) + 'M', sub: 'sum across all readings' },
+    { label: 'Anomalies Found', value: o.anomaly_count.toLocaleString(), sub: `across ${o.series_with_anomaly} of ${o.total_series} series` },
+    { label: 'Biggest Systemic Spike', value: o.systemic_spike_series_count + ' series', sub: 'spiked simultaneously, 2020-03-02' },
+  ];
+  document.getElementById('kpis').innerHTML = kpis.map(k => `
+    <div class="kpi">
+      <div class="label">${k.label}</div>
+      <div class="value">${k.value}</div>
+      <div class="sub">${k.sub}</div>
+    </div>
+  `).join('');
+}
+
+function renderMonthly() {
+  const rows = DASH_DATA.monthly;
+  new Chart(document.getElementById('chartMonthly'), {
+    type: 'line',
+    data: {
+      labels: rows.map(r => r.month),
+      datasets: [{
+        label: 'Total Activity',
+        data: rows.map(r => r.total_activity),
+        borderColor: COLORS.navy, backgroundColor: COLORS.navy + '22',
+        fill: true, tension: 0.25, pointRadius: 2,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { title: { display: true, text: 'Total Activity' } } }
+    }
+  });
+}
+
+function renderTopSeries() {
+  const rows = DASH_DATA.top_series.slice(0, 10);
+  new Chart(document.getElementById('chartTopSeries'), {
+    type: 'bar',
+    data: {
+      labels: rows.map(r => 'ID ' + r.unique_id),
+      datasets: [{ label: 'Total Activity', data: rows.map(r => r.total_activity), backgroundColor: COLORS.slate }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+    }
+  });
+}
+
+function renderHour() {
+  const rows = DASH_DATA.hour;
+  new Chart(document.getElementById('chartHour'), {
+    type: 'line',
+    data: {
+      labels: rows.map(r => r.hour_of_day + ':00'),
+      datasets: [{ label: 'Avg Activity', data: rows.map(r => r.avg_activity), borderColor: COLORS.navy, backgroundColor: COLORS.navy + '22', fill: true, tension: 0.3 }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+  });
+}
+
+function renderDow() {
+  const rows = DASH_DATA.dow;
+  new Chart(document.getElementById('chartDow'), {
+    type: 'bar',
+    data: {
+      labels: rows.map(r => r.day_name),
+      datasets: [{ label: 'Avg Activity', data: rows.map(r => r.avg_activity),
+        backgroundColor: rows.map(r => (r.day_name === 'Saturday' || r.day_name === 'Sunday') ? COLORS.up : COLORS.slate) }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+  });
+}
+
+function renderAnomaly() {
+  const rows = [...DASH_DATA.anomaly_dates].sort((a,b) => a.count - b.count);
+  new Chart(document.getElementById('chartAnomaly'), {
+    type: 'bar',
+    data: {
+      labels: rows.map(r => r.date),
+      datasets: [{ label: 'Anomalous Readings', data: rows.map(r => r.count), backgroundColor: COLORS.down }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+    }
+  });
+}
+
+function renderGrowth() {
+  const top = DASH_DATA.growth_top;
+  const bottom = DASH_DATA.growth_bottom;
+  const combined = [...top, ...bottom];
+  new Chart(document.getElementById('chartGrowth'), {
+    type: 'bar',
+    data: {
+      labels: combined.map(r => 'ID ' + r.unique_id),
+      datasets: [{
+        label: 'Growth % (first 90d vs last 90d)',
+        data: combined.map(r => r.growth_pct),
+        backgroundColor: combined.map(r => r.growth_pct >= 0 ? COLORS.up : COLORS.down)
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { title: { display: true, text: 'Growth %' } } }
+    }
+  });
+}
+
+function init() {
+  renderKPIs();
+  renderMonthly();
+  renderTopSeries();
+  renderHour();
+  renderDow();
+  renderAnomaly();
+  renderGrowth();
+}
+
+document.addEventListener('DOMContentLoaded', init);
+
+</script>
+</body>
+</html>
